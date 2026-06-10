@@ -287,15 +287,41 @@ type secretPattern struct {
 }
 
 var secretPatterns = []secretPattern{
+	// PEM private key blocks: redact the whole block including the body. Must run
+	// before the generic key=value rule so multiline keys are fully removed.
+	{regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`), `[redacted-secret]`},
 	{regexp.MustCompile(`(?i)(api[_-]?key|token|secret|password|authorization|bearer)(["'\s:=]+)[^"'\s,}]+`), `$1$2[redacted-secret]`},
+	// AWS access key IDs (AKIA followed by 16 uppercase alphanumerics). Case
+	// sensitive: the AKIA prefix and key body are always uppercase.
+	{regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`), `[redacted-secret]`},
+	// GitHub tokens: ghp_, gho_, ghu_, ghs_, ghr_ followed by >=36 chars.
+	{regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{36,}\b`), `[redacted-secret]`},
+	// JSON Web Tokens: header.payload.signature, each base64url, header starts eyJ.
+	{regexp.MustCompile(`\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`), `[redacted-secret]`},
 	{regexp.MustCompile(`(?i)sk-[A-Za-z0-9_-]{16,}`), `[redacted-secret]`},
 	{regexp.MustCompile(`(?i)xox[baprs]-[A-Za-z0-9-]+`), `[redacted-secret]`},
 }
 
+// hostnameTLDs is the set of trailing labels we treat as real hostnames. It
+// covers internal/lab suffixes plus a curated set of common public TLDs. We do
+// not match an open-ended [a-z]{2,} because that over-redacts ordinary dotted
+// words like "file.go", "e.g." or "package.json".
+var hostnameTLDs = strings.Join([]string{
+	// internal / lab / reserved
+	"local", "internal", "lan", "corp", "home", "intranet", "localdomain", "localhost", "invalid",
+	// common gTLDs
+	"com", "org", "net", "edu", "gov", "mil", "int", "info", "biz", "io", "dev", "app", "cloud", "co", "ai", "xyz",
+	// common ccTLDs
+	"us", "uk", "ca", "de", "fr", "jp", "cn", "au", "ru", "br", "in", "nl", "se", "es", "it", "ch", "eu",
+}, "|")
+
 var (
-	emailPattern    = regexp.MustCompile(`(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b`)
-	urlPattern      = regexp.MustCompile(`(?i)\bhttps?://[^\s"'<>]+`)
-	hostnamePattern = regexp.MustCompile(`(?i)\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(local|internal|lan|corp|home|dev|test|example|invalid|localhost|[a-z]{2,})\b`)
+	emailPattern = regexp.MustCompile(`(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b`)
+	urlPattern   = regexp.MustCompile(`(?i)\bhttps?://[^\s"'<>]+`)
+	// hostnamePattern requires at least one dotted label followed by a known TLD
+	// from hostnameTLDs. The trailing (?:[:/]...) guard avoids matching when the
+	// "TLD" is actually the start of a longer word (e.g. "files" vs "file").
+	hostnamePattern = regexp.MustCompile(`(?i)\b([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(` + hostnameTLDs + `)\b`)
 )
 
 func RedactText(text string, opts Options) string {

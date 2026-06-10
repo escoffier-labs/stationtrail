@@ -144,6 +144,90 @@ func TestRedactTextProfiles(t *testing.T) {
 	}
 }
 
+func TestRedactSecretsPatterns(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+	}{
+		{"aws_access_key", "creds AKIAIOSFODNN7EXAMPLE in use"},
+		{"github_pat", "use ghp_0123456789abcdefghijklmnopqrstuvwxyz12 now"},
+		{"github_oauth", "token gho_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ34 here"},
+		{"jwt", "auth eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U here"},
+		{"slack", "slack xoxb-1234567890-abcdef live"},
+		{"openai", "key sk-abcdefghijklmnopqrstuvwxyz123456 leaked"},
+		{"keyvalue", `config api_key="supersecretvalue123"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := RedactSecrets(tc.in)
+			if !strings.Contains(out, "[redacted-secret]") {
+				t.Fatalf("expected redaction marker in %q", out)
+			}
+		})
+	}
+
+	// JWT must be redacted as a full token.
+	jwt := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+	if out := RedactSecrets("bearer header " + jwt); strings.Contains(out, "eyJzdWIi") {
+		t.Fatalf("jwt payload leaked: %q", out)
+	}
+
+	// PEM private key blocks must be fully removed, body and all.
+	pem := "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAabc123secretkeymaterial\nQWxpY2UgaW4gV29uZGVybGFuZA==\n-----END RSA PRIVATE KEY-----"
+	out := RedactSecrets("here is the key:\n" + pem + "\ndone")
+	for _, leaked := range []string{"MIIEpAIBAAKCAQEA", "secretkeymaterial", "QWxpY2U"} {
+		if strings.Contains(out, leaked) {
+			t.Fatalf("PEM body leaked %q in %q", leaked, out)
+		}
+	}
+	if !strings.Contains(out, "[redacted-secret]") {
+		t.Fatalf("PEM block not redacted: %q", out)
+	}
+}
+
+func TestRedactSecretsNegativeCases(t *testing.T) {
+	// Ordinary text that resembles secret shapes but is not, must survive.
+	cases := []string{
+		"AKIASHORT",             // too short for AWS key
+		"AKIAlowercase1234567",  // wrong case / shape
+		"ghx_notarealtokentype", // unknown gh prefix
+		"ghp_tooshort",          // gh token below length
+		"see file.go and package.json for details", // dotted words, not secrets
+		"the sky is blue and grass is green",       // plain prose
+		"version sk-1 is not a key",                // sk- but far too short
+	}
+	for _, in := range cases {
+		if out := RedactSecrets(in); strings.Contains(out, "[redacted-secret]") {
+			t.Fatalf("false positive secret redaction for %q -> %q", in, out)
+		}
+	}
+}
+
+func TestRedactHostnamesTightened(t *testing.T) {
+	opts := Options{RedactHostnames: true}
+
+	// Real hostnames must be redacted.
+	for _, host := range []string{"build.internal", "db.corp.local", "api.example.com", "host.example.io"} {
+		if out := RedactText("connect to "+host+" now", opts); strings.Contains(out, host) {
+			t.Fatalf("hostname %q not redacted: %q", host, out)
+		}
+	}
+
+	// Ordinary dotted words and sentences must NOT be redacted.
+	negatives := []string{
+		"open file.go in the editor",
+		"check package.json and tsconfig.json",
+		"e.g. this is an example phrase",
+		"the version is 1.2.3 right now",
+		"see source.go line 10",
+	}
+	for _, in := range negatives {
+		if out := RedactText(in, opts); strings.Contains(out, "[redacted-host]") {
+			t.Fatalf("false positive hostname redaction for %q -> %q", in, out)
+		}
+	}
+}
+
 func TestApplyRedactionRedactsRawPathAndText(t *testing.T) {
 	rec := adapter.Record{
 		Item: adapter.Item{Text: "contact demo@example.com"},
