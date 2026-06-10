@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/escoffier-labs/stationtrail/internal/adapter"
 	"github.com/escoffier-labs/stationtrail/internal/sources"
 	"github.com/escoffier-labs/stationtrail/internal/sources/claude"
 	"github.com/escoffier-labs/stationtrail/internal/sources/codex"
@@ -65,6 +66,37 @@ var commands = map[string]commandDef{
 
 var allSourceOrder = []string{"codex", "claude", "openclaw", "hermes"}
 
+// supportedSources is the canonical, ordered list of source kinds this binary
+// can export. MiseLedger reads this via `capabilities` to detect incompatible
+// binaries, so the order and contents are part of the public contract.
+var supportedSources = []string{"codex", "claude", "openclaw", "hermes", "opencode"}
+
+// supportedRedactionProfiles is the canonical, ordered list of accepted
+// --redact values (profiles plus individual toggles). It is the source of
+// truth surfaced by `capabilities`; parseRedactions validates against the same
+// set of names.
+var supportedRedactionProfiles = []string{"safe", "none", "paths", "secrets", "emails", "urls", "hostnames", "all"}
+
+// Capabilities is the stable JSON object MiseLedger consumes to detect
+// incompatible stationtrail binaries.
+type Capabilities struct {
+	Tool              string   `json:"tool"`
+	Version           string   `json:"version"`
+	Schema            string   `json:"schema"`
+	Sources           []string `json:"sources"`
+	RedactionProfiles []string `json:"redaction_profiles"`
+}
+
+func capabilities() Capabilities {
+	return Capabilities{
+		Tool:              "stationtrail",
+		Version:           Version,
+		Schema:            adapter.SchemaV1,
+		Sources:           append([]string(nil), supportedSources...),
+		RedactionProfiles: append([]string(nil), supportedRedactionProfiles...),
+	}
+}
+
 func Run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
 		printHelp(stdout)
@@ -73,6 +105,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "version":
 		fmt.Fprintf(stdout, "stationtrail %s\n", Version)
+		return 0
+	case "capabilities":
+		if err := runCapabilities(args[1:], stdout); err != nil {
+			fmt.Fprintln(stderr, "error:", err)
+			return 1
+		}
 		return 0
 	case "all":
 		if err := runAll(args[1:], stdout, stderr); err != nil {
@@ -125,7 +163,29 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  stationtrail openclaw [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail opencode <export-json|dir|session-id> --out <file|-> [--limit N] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail hermes [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
+	fmt.Fprintln(w, "  stationtrail capabilities [--json]")
 	fmt.Fprintln(w, "  stationtrail version")
+}
+
+func runCapabilities(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("capabilities", flag.ContinueOnError)
+	pretty := fs.Bool("json", false, "pretty-print the JSON object")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if len(fs.Args()) != 0 {
+		return errors.New("usage: stationtrail capabilities [--json]")
+	}
+	caps := capabilities()
+	if *pretty {
+		return writeJSON(stdout, caps)
+	}
+	b, err := json.Marshal(caps)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "%s\n", b)
+	return nil
 }
 
 func runAll(args []string, stdout, stderr io.Writer) error {

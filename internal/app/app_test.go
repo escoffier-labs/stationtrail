@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -487,6 +488,58 @@ func TestDiscoverDoesNotPrintContent(t *testing.T) {
 	}
 	if len(discovery.Sources) == 0 {
 		t.Fatalf("expected discovery sources")
+	}
+}
+
+func TestCapabilitiesEmitsStableContract(t *testing.T) {
+	for _, args := range [][]string{
+		{"capabilities"},
+		{"capabilities", "--json"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run(args, &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("exit %d stderr=%s", code, stderr.String())
+			}
+			var caps Capabilities
+			if err := json.Unmarshal(stdout.Bytes(), &caps); err != nil {
+				t.Fatalf("capabilities was not JSON: %v\n%s", err, stdout.String())
+			}
+			if caps.Tool != "stationtrail" {
+				t.Fatalf("tool = %q", caps.Tool)
+			}
+			if caps.Version != Version {
+				t.Fatalf("version = %q, want %q", caps.Version, Version)
+			}
+			if caps.Schema != adapter.SchemaV1 {
+				t.Fatalf("schema = %q, want %q", caps.Schema, adapter.SchemaV1)
+			}
+			wantSources := []string{"codex", "claude", "openclaw", "hermes", "opencode"}
+			if !reflect.DeepEqual(caps.Sources, wantSources) {
+				t.Fatalf("sources = %v, want %v", caps.Sources, wantSources)
+			}
+			wantProfiles := []string{"safe", "none", "paths", "secrets", "emails", "urls", "hostnames", "all"}
+			if !reflect.DeepEqual(caps.RedactionProfiles, wantProfiles) {
+				t.Fatalf("redaction_profiles = %v, want %v", caps.RedactionProfiles, wantProfiles)
+			}
+		})
+	}
+}
+
+func TestCapabilitiesRawKeysPresent(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"capabilities"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d stderr=%s", code, stderr.String())
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &raw); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	for _, key := range []string{"tool", "version", "schema", "sources", "redaction_profiles"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("missing key %q in %s", key, stdout.String())
+		}
 	}
 }
 
