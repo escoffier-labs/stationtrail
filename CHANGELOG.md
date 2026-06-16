@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - CI now runs the test suite with the race detector (`go test -race ./...`).
+- `opencode` usage now documents the supported `--since` flag.
+
+### Fixed
+
+- `opencode` string timestamps are normalized to UTC RFC3339Nano so `--since`
+  filtering works against ISO-8601 export times.
+- `opencode` reports an actionable message when the external `opencode` binary
+  is not on `PATH` instead of an opaque exec error.
+- `inspect` bounds object recursion to a fixed depth and records a warning when
+  nested keys are truncated.
 
 ### Security
 

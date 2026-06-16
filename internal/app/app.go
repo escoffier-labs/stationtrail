@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 	"github.com/escoffier-labs/stationtrail/internal/sources/opencode"
 )
 
-const Version = "0.1.4"
+const Version = "0.1.5-dev"
 
 type commandDef struct {
 	name        string
@@ -161,7 +162,7 @@ func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "  stationtrail codex [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail claude [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail openclaw [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
-	fmt.Fprintln(w, "  stationtrail opencode <export-json|dir|session-id> --out <file|-> [--limit N] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
+	fmt.Fprintln(w, "  stationtrail opencode <export-json|dir|session-id> --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail hermes [path-or-dir] --out <file|-> [--limit N] [--since DATE] [--dry-run] [--redact safe|none|paths,secrets,emails,urls,hostnames,all] [--json]")
 	fmt.Fprintln(w, "  stationtrail capabilities [--json]")
 	fmt.Fprintln(w, "  stationtrail version")
@@ -355,8 +356,11 @@ func runExport(def commandDef, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
+	var summary map[string]any
+	if *jsonSummary || *summaryOut != "" {
+		summary = exportSummary(def.name, path, exportTarget(*outPath, *dryRun), *dryRun, redactions, result)
+	}
 	if *jsonSummary {
-		summary := exportSummary(def.name, path, exportTarget(*outPath, *dryRun), *dryRun, redactions, result)
 		target := stdout
 		if *outPath == "-" && !*dryRun {
 			target = stderr
@@ -366,7 +370,6 @@ func runExport(def commandDef, args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	if *summaryOut != "" {
-		summary := exportSummary(def.name, path, exportTarget(*outPath, *dryRun), *dryRun, redactions, result)
 		if err := writeAtomicJSON(*summaryOut, summary); err != nil {
 			return err
 		}
@@ -804,7 +807,20 @@ func inspectOpenCodeExport(report InspectReport) (InspectReport, error) {
 	return report, nil
 }
 
+const inspectMaxDepth = 4
+
 func inspectObject(prefix string, obj map[string]any, report *InspectReport) {
+	inspectObjectDepth(prefix, obj, report, 0)
+}
+
+func inspectObjectDepth(prefix string, obj map[string]any, report *InspectReport, depth int) {
+	if depth > inspectMaxDepth {
+		warning := "inspect: nested keys truncated at depth " + strconv.Itoa(inspectMaxDepth)
+		if !containsString(report.Warnings, warning) {
+			report.Warnings = append(report.Warnings, warning)
+		}
+		return
+	}
 	keys := make([]string, 0, len(obj))
 	for key := range obj {
 		keys = append(keys, key)
@@ -823,7 +839,7 @@ func inspectObject(prefix string, obj map[string]any, report *InspectReport) {
 			if prefix != "" {
 				nextPrefix = prefix + "." + key
 			}
-			inspectObject(nextPrefix, child, report)
+			inspectObjectDepth(nextPrefix, child, report, depth+1)
 		case []any:
 			nextPrefix := key
 			if prefix != "" {
@@ -831,11 +847,20 @@ func inspectObject(prefix string, obj map[string]any, report *InspectReport) {
 			}
 			for _, item := range child {
 				if m, ok := item.(map[string]any); ok {
-					inspectObject(nextPrefix, m, report)
+					inspectObjectDepth(nextPrefix, m, report, depth+1)
 				}
 			}
 		}
 	}
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 func stringValue(v any) string {

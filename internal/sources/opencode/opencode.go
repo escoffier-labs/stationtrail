@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -126,6 +127,9 @@ func readExport(input string) (exportFile, []byte, error) {
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return exportFile{}, nil, fmt.Errorf("opencode export timed out after %s", opencodeExportTimeout)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			return exportFile{}, nil, fmt.Errorf("opencode binary not found on PATH: install opencode to export session ID %q, or pass a sanitized export file path instead", input)
 		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
@@ -301,6 +305,18 @@ func stringFrom(m map[string]any, keys ...string) string {
 func timeString(v any) string {
 	switch t := v.(type) {
 	case string:
+		if strings.TrimSpace(t) == "" {
+			return ""
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, t); err == nil {
+			return parsed.UTC().Format(time.RFC3339Nano)
+		}
+		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+			return parsed.UTC().Format(time.RFC3339Nano)
+		}
+		if parsed, err := time.Parse("2006-01-02T15:04:05", t); err == nil {
+			return parsed.UTC().Format(time.RFC3339Nano)
+		}
 		return t
 	case float64:
 		return unixMillis(int64(t))

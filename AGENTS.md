@@ -40,4 +40,4 @@ Runs `go vet ./...`, `go test -race ./...`, and `go build -o bin/stationtrail ./
 
 ## Memory Handoff
 
-At the end of any substantial task, write durable findings to `.claude/memory-handoffs/` using its `TEMPLATE.md`. the memory system ingests handoffs from there; do not edit memory files directly.
+At the end of any substantial task, write durable findings to `.claude/memory-handoffs/` using its `TEMPLATE.md`. The memory system ingests handoffs from there; do not edit memory files directly.
