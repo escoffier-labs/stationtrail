@@ -23,7 +23,7 @@ import (
 	"github.com/escoffier-labs/stationtrail/internal/sources/opencode"
 )
 
-const Version = "0.1.5-dev"
+const Version = "0.2.0"
 
 type commandDef struct {
 	name        string
