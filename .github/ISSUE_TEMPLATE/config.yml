@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MiseLedger (the evidence layer StationTrail feeds)
+    url: https://github.com/escoffier-labs/miseledger
+    about: StationTrail exports adapter JSONL. Archive, index, search, and evidence bundles live in MiseLedger. File storage or search issues there.
+  - name: SourceHarvest (non-harness local sources)
+    url: https://github.com/escoffier-labs/sourceharvest
+    about: Notes, generic files, crawler exports, and issue exports belong in SourceHarvest, not StationTrail.
+  - name: Security report
+    url: https://github.com/escoffier-labs/stationtrail/security/policy
+    about: Do not file security issues publicly. See SECURITY.md.

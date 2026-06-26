@@ -1,6 +1,14 @@
-# StationTrail
+<p align="center">
+  <img src="docs/assets/stationtrail-social-preview.jpg" alt="StationTrail banner" width="900">
+</p>
 
-<p>
+<h1 align="center">StationTrail</h1>
+
+<p align="center">
+  <strong>Export your local AI agent session logs (Codex, Claude Code, OpenClaw, Hermes, OpenCode) to portable <code>miseledger.adapter.v1</code> JSONL. A local-only scanner and exporter, no network calls.</strong>
+</p>
+
+<p align="center">
   <a href="https://github.com/escoffier-labs/stationtrail/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/escoffier-labs/stationtrail/ci.yml?branch=master&style=for-the-badge&label=ci" alt="CI status"></a>
   <a href="https://github.com/escoffier-labs/stationtrail/releases"><img src="https://img.shields.io/github/v/release/escoffier-labs/stationtrail?style=for-the-badge&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/go-1.22%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.22+">
@@ -8,11 +16,19 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT license"></a>
 </p>
 
-StationTrail exports local agent session logs to `miseledger.adapter.v1` JSONL.
+<p align="center">
+  <strong>Website:</strong> <a href="https://stationtrail.escoffierlabs.dev">stationtrail.escoffierlabs.dev</a>
+</p>
 
-It is a scanner and exporter, not an archive. StationTrail reads local session files, normalizes them into portable adapter records, and writes JSONL to a file or stdout. MiseLedger owns storage, indexing, dedupe, search, relations, and evidence bundles.
+StationTrail exports local agent session logs to `miseledger.adapter.v1` JSONL so a separate evidence layer can archive and search them. It exists because each agent harness stores its sessions in its own format and location, and there was no portable, local-only way to normalize all of them into one adapter contract. Unlike a memory layer or an archive, StationTrail is a stateless scanner and exporter: it reads local files, normalizes them, writes JSONL, and stops, while [MiseLedger](https://github.com/escoffier-labs/miseledger) owns storage, indexing, dedupe, search, relations, and evidence bundles.
 
 StationTrail makes no network calls.
+
+## What it does
+
+StationTrail is a local-only command-line **agent session exporter**. It scans the session logs that your AI coding agents leave on disk, normalizes each harness's native format into a portable adapter record, and writes `miseledger.adapter.v1` JSONL to a file or stdout. It reads Codex session JSONL, Claude Code project JSONL, OpenClaw agent sessions and trajectories, Hermes snapshots and trajectories, and sanitized OpenCode exports, then emits one JSON object per line that a downstream evidence ledger can import.
+
+It is a scanner and exporter, not an archive. StationTrail keeps a strict privacy boundary: diagnostic commands report structure, counts, and file manifests without printing transcript text, and redaction is applied per export. It carries no storage, no database, and no server. MiseLedger owns the durable side; StationTrail owns the source-specific adapter layer.
 
 ## Local Evidence Stack
 
@@ -172,6 +188,40 @@ go test ./...
 
 ## Quick Start
 
+Confirm which binary you are running and what it can do:
+
+```bash
+stationtrail version
+stationtrail capabilities --json
+```
+
+`capabilities --json` emits a stable contract object that MiseLedger reads to detect incompatible binaries:
+
+```json
+{
+  "tool": "stationtrail",
+  "version": "0.2.0",
+  "schema": "miseledger.adapter.v1",
+  "sources": [
+    "codex",
+    "claude",
+    "openclaw",
+    "hermes",
+    "opencode"
+  ],
+  "redaction_profiles": [
+    "safe",
+    "none",
+    "paths",
+    "secrets",
+    "emails",
+    "urls",
+    "hostnames",
+    "all"
+  ]
+}
+```
+
 Check local source readiness:
 
 ```bash
@@ -275,6 +325,31 @@ See [docs/MISELEDGER_INTEGRATION.md](docs/MISELEDGER_INTEGRATION.md) for MiseLed
 See [docs/RECORD_EXAMPLES.md](docs/RECORD_EXAMPLES.md) for one canonical record example per source.
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what is usable now, what is planned, and the OpenCode adapter's current maturity.
 
+## Why not something else?
+
+- **A memory layer (mem0, Letta, native harness memory)** stores and recalls context for an agent to use again. StationTrail does not store or recall anything. It is a one-shot exporter that turns session files into a portable record and exits, leaving storage and search to a separate evidence layer.
+- **`grep`, `jq`, or a hand-rolled script** can read one harness's JSONL, but each harness uses a different shape, and you would re-learn and re-maintain five parsers. StationTrail normalizes all supported harnesses into one stable adapter contract with consistent actors, artifacts, relations, and raw references.
+- **A hosted log pipeline or SaaS observability tool** ships your transcripts off the machine. StationTrail makes no network calls. It reads local files and writes local JSONL, and its diagnostic commands report structure and counts without printing transcript text.
+- **MiseLedger by itself** is the durable archive, index, and search layer. It needs source-specific adapters to feed it. StationTrail is one of those adapters, scoped to local agent-session harnesses, and stays out of storage so the boundary stays clean.
+
+## What stationtrail is not
+
+StationTrail is not an archive, a database, a search index, or a server. It does not:
+
+- store, dedupe, index, or search anything (MiseLedger owns that)
+- make network calls or send telemetry
+- absorb crawler adapters or general local note and file harvesting (that belongs in [SourceHarvest](https://github.com/escoffier-labs/sourceharvest))
+- print generated transcript text in `discover`, `doctor`, `inspect`, or any `--dry-run` summary
+- treat exported text as trusted input; generated text is untrusted evidence, not instructions
+
 ## Project Boundary
 
 StationTrail stays focused on exporting local agent session logs to adapter JSONL. Archive storage, SQLite, search, evidence bundles, GUI, and server behavior belong in MiseLedger.
+
+## Contributing
+
+Issues and pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local dev and what lands easily, [SECURITY.md](SECURITY.md) for reporting vulnerabilities, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for project norms. Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE).

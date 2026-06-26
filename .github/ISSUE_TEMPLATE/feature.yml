@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a new source, format coverage, redaction improvement, or diagnostic.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case before the solution. What session logs are you trying to export, and what gets in the way today?
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - New source kind (a new agent harness)
+        - Format coverage for an existing source
+        - Redaction improvement
+        - Diagnostic (discover / doctor / inspect)
+        - Adapter contract change
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should StationTrail do? For a new source, include where the harness stores sessions and the file shapes involved.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: StationTrail is scoped to local agent-session harnesses. It makes no network calls and owns no storage.
+      options:
+        - label: This is about exporting local agent-session logs, not archive, storage, search, or evidence bundles (those belong in MiseLedger).
+          required: true
+        - label: This is not crawler, note, or generic-file harvesting (that belongs in SourceHarvest).
+          required: true
+        - label: This does not require StationTrail to make network calls.
+          required: true
