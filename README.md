@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/stationtrail-social-preview.jpg" alt="StationTrail banner" width="900">
+</p>
+
 <h1 align="center">StationTrail</h1>
 
 <p align="center">
