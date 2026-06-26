@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it differs from a memory layer or an archive. Added a Website link, a
   `capabilities --json` proof block, and "Why not something else?" and "What
   stationtrail is not" sections.
+- Added a recorded terminal demo near the top of the `README.md`
+  (`docs/assets/stationtrail-harvest.svg`, reproducible from the committed
+  `.cast`). It lists the supported harnesses, reads a Codex and a Claude session
+  with `--redact safe`, and shows every emitted record carries the
+  `miseledger.adapter.v1` schema. Built from the bundled testdata fixtures.
 
 ## [0.2.0] - 2026-06-16
 
