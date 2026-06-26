@@ -24,6 +24,12 @@ StationTrail exports local agent session logs to `miseledger.adapter.v1` JSONL s
 
 StationTrail makes no network calls.
 
+<p align="center">
+  <img src="docs/assets/stationtrail-harvest.svg" alt="Recording: stationtrail lists its supported harnesses, reads a Codex and a Claude session with safe redaction, and shows every emitted record carries the miseledger.adapter.v1 schema" width="820">
+</p>
+
+Five agent harnesses, one adapter contract. Point it at a Codex or Claude session, apply `--redact safe`, and every record comes out as `miseledger.adapter.v1` JSONL.
+
 ## What it does
 
 StationTrail is a local-only command-line **agent session exporter**. It scans the session logs that your AI coding agents leave on disk, normalizes each harness's native format into a portable adapter record, and writes `miseledger.adapter.v1` JSONL to a file or stdout. It reads Codex session JSONL, Claude Code project JSONL, OpenClaw agent sessions and trajectories, Hermes snapshots and trajectories, and sanitized OpenCode exports, then emits one JSON object per line that a downstream evidence ledger can import.
