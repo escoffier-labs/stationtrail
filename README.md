@@ -9,15 +9,15 @@
 </p>
 
 <p align="center">
+  <strong>Website:</strong> <a href="https://stationtrail.escoffierlabs.dev">stationtrail.escoffierlabs.dev</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/escoffier-labs/stationtrail/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/escoffier-labs/stationtrail/ci.yml?branch=master&style=for-the-badge&label=ci" alt="CI status"></a>
   <a href="https://github.com/escoffier-labs/stationtrail/releases"><img src="https://img.shields.io/github/v/release/escoffier-labs/stationtrail?style=for-the-badge&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/go-1.22%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.22+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=for-the-badge" alt="Platform: Linux, macOS, Windows">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT license"></a>
-</p>
-
-<p align="center">
-  <strong>Website:</strong> <a href="https://stationtrail.escoffierlabs.dev">stationtrail.escoffierlabs.dev</a>
 </p>
 
 StationTrail exports local agent session logs to `miseledger.adapter.v1` JSONL so a separate evidence layer can archive and search them. It exists because each agent harness stores its sessions in its own format and location, and there was no portable, local-only way to normalize all of them into one adapter contract. Unlike a memory layer or an archive, StationTrail is a stateless scanner and exporter: it reads local files, normalizes them, writes JSONL, and stops, while [MiseLedger](https://github.com/escoffier-labs/miseledger) owns storage, indexing, dedupe, search, relations, and evidence bundles.
@@ -35,6 +35,106 @@ Five agent harnesses, one adapter contract. Point it at a Codex or Claude sessio
 StationTrail is a local-only command-line **agent session exporter**. It scans the session logs that your AI coding agents leave on disk, normalizes each harness's native format into a portable adapter record, and writes `miseledger.adapter.v1` JSONL to a file or stdout. It reads Codex session JSONL, Claude Code project JSONL, OpenClaw agent sessions and trajectories, Hermes snapshots and trajectories, and sanitized OpenCode exports, then emits one JSON object per line that a downstream evidence ledger can import.
 
 It is a scanner and exporter, not an archive. StationTrail keeps a strict privacy boundary: diagnostic commands report structure, counts, and file manifests without printing transcript text, and redaction is applied per export. It carries no storage, no database, and no server. MiseLedger owns the durable side; StationTrail owns the source-specific adapter layer.
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/escoffier-labs/stationtrail/master/install.sh | sh
+```
+
+Or download a release binary and verify it with `checksums.txt`.
+
+## Build
+
+```bash
+go build -o bin/stationtrail ./cmd/stationtrail
+go test ./...
+```
+
+## Quick Start
+
+Confirm which binary you are running and what it can do:
+
+```bash
+stationtrail version
+stationtrail capabilities --json
+```
+
+`capabilities --json` emits a stable contract object that MiseLedger reads to detect incompatible binaries:
+
+```json
+{
+  "tool": "stationtrail",
+  "version": "0.2.0",
+  "schema": "miseledger.adapter.v1",
+  "sources": [
+    "codex",
+    "claude",
+    "openclaw",
+    "hermes",
+    "opencode"
+  ],
+  "redaction_profiles": [
+    "safe",
+    "none",
+    "paths",
+    "secrets",
+    "emails",
+    "urls",
+    "hostnames",
+    "all"
+  ]
+}
+```
+
+Check local source readiness:
+
+```bash
+stationtrail discover --json
+stationtrail doctor --json
+stationtrail doctor --live --json
+```
+
+Inspect structure without exporting transcript text:
+
+```bash
+stationtrail inspect codex ~/.codex/sessions --json
+stationtrail inspect hermes ~/.hermes/sessions --json
+```
+
+Export all default sources:
+
+```bash
+stationtrail all --out agent-sessions.adapter.jsonl --redact paths,secrets
+stationtrail all --out - --redact safe
+```
+
+Export one source:
+
+```bash
+stationtrail codex ~/.codex/sessions --out -
+stationtrail claude ~/.claude/projects --out claude.adapter.jsonl --limit 100
+stationtrail openclaw ~/.openclaw/agents --out openclaw.adapter.jsonl --since 2026-06-01
+stationtrail hermes ~/.hermes/sessions --out hermes.adapter.jsonl
+```
+
+Export OpenCode:
+
+```bash
+opencode export <session-id> --sanitize > opencode-session.json
+stationtrail opencode opencode-session.json --out opencode.adapter.jsonl
+```
+
+Dry-run scans count files, generated records, and warnings without writing adapter records:
+
+```bash
+stationtrail all --dry-run --json
+stationtrail codex ~/.codex/sessions --dry-run --json
+stationtrail claude ~/.claude/projects --dry-run --json
+stationtrail openclaw ~/.openclaw/agents --dry-run --json
+stationtrail opencode opencode-session.json --dry-run --json
+stationtrail hermes ~/.hermes/sessions --dry-run --json
+```
 
 ## Local Evidence Stack
 
@@ -176,106 +276,6 @@ For mixed-source imports, prefer the pipe form with `stationtrail all`. Adapter 
 | OpenCode | Explicit file, directory, or session ID | Use sanitized export JSON from `opencode export <session-id> --sanitize`. Session IDs are exported through the local `opencode` command. |
 
 `stationtrail all` scans Codex, Claude, OpenClaw, and Hermes default roots. OpenCode is explicit-only because its sanitized export input is user-selected.
-
-## Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/escoffier-labs/stationtrail/master/install.sh | sh
-```
-
-Or download a release binary and verify it with `checksums.txt`.
-
-## Build
-
-```bash
-go build -o bin/stationtrail ./cmd/stationtrail
-go test ./...
-```
-
-## Quick Start
-
-Confirm which binary you are running and what it can do:
-
-```bash
-stationtrail version
-stationtrail capabilities --json
-```
-
-`capabilities --json` emits a stable contract object that MiseLedger reads to detect incompatible binaries:
-
-```json
-{
-  "tool": "stationtrail",
-  "version": "0.2.0",
-  "schema": "miseledger.adapter.v1",
-  "sources": [
-    "codex",
-    "claude",
-    "openclaw",
-    "hermes",
-    "opencode"
-  ],
-  "redaction_profiles": [
-    "safe",
-    "none",
-    "paths",
-    "secrets",
-    "emails",
-    "urls",
-    "hostnames",
-    "all"
-  ]
-}
-```
-
-Check local source readiness:
-
-```bash
-stationtrail discover --json
-stationtrail doctor --json
-stationtrail doctor --live --json
-```
-
-Inspect structure without exporting transcript text:
-
-```bash
-stationtrail inspect codex ~/.codex/sessions --json
-stationtrail inspect hermes ~/.hermes/sessions --json
-```
-
-Export all default sources:
-
-```bash
-stationtrail all --out agent-sessions.adapter.jsonl --redact paths,secrets
-stationtrail all --out - --redact safe
-```
-
-Export one source:
-
-```bash
-stationtrail codex ~/.codex/sessions --out -
-stationtrail claude ~/.claude/projects --out claude.adapter.jsonl --limit 100
-stationtrail openclaw ~/.openclaw/agents --out openclaw.adapter.jsonl --since 2026-06-01
-stationtrail hermes ~/.hermes/sessions --out hermes.adapter.jsonl
-```
-
-Export OpenCode:
-
-```bash
-opencode export <session-id> --sanitize > opencode-session.json
-stationtrail opencode opencode-session.json --out opencode.adapter.jsonl
-```
-
-Dry-run scans count files, generated records, and warnings without writing adapter records:
-
-```bash
-stationtrail all --dry-run --json
-stationtrail codex ~/.codex/sessions --dry-run --json
-stationtrail claude ~/.claude/projects --dry-run --json
-stationtrail openclaw ~/.openclaw/agents --dry-run --json
-stationtrail opencode opencode-session.json --dry-run --json
-stationtrail hermes ~/.hermes/sessions --dry-run --json
-```
 
 ## Redaction
 
