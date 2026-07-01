@@ -35,6 +35,10 @@ func Generate(path string, opts sources.Options, w io.Writer) (sources.Result, e
 			scans.Warning(ev.Path)
 			return nil
 		}
+		if rec.Schema == "" {
+			// normalize signalled a silent skip (bookkeeping event, no content).
+			return nil
+		}
 		if !sources.KeepTimestamp(rec.Item.CreatedAt, since, hasSince) {
 			return nil
 		}
@@ -76,6 +80,9 @@ func normalize(ev sources.RawEvent) (adapter.Record, string) {
 	text := openclawText(ev.Object, data)
 	if text == "" && (eventType == "model_change" || eventType == "thinking_level_change" || eventType == "custom") {
 		text = strings.TrimSpace(strings.Join(nonEmpty("OpenClaw", eventType, sources.String(ev.Object, "modelId"), sources.String(ev.Object, "thinkingLevel"), sources.String(ev.Object, "customType")), " "))
+	}
+	if text == "" && quietSkipEvent(eventType) {
+		return adapter.Record{}, ""
 	}
 	if text == "" && eventType != "session" && eventType != "session.started" && eventType != "session.ended" {
 		return adapter.Record{}, fmt.Sprintf("%s:%d: no searchable text for event type %q", ev.Path, ev.Ordinal, eventType)
@@ -145,20 +152,42 @@ func normalize(ev sources.RawEvent) (adapter.Record, string) {
 }
 
 func openclawText(root map[string]any, data map[string]any) string {
-	for _, v := range []any{
+	candidates := []any{
 		root["text"],
 		root["message"],
 		root["content"],
 		root["prompt"],
 		root["output"],
 		root["result"],
-		data,
-	} {
+	}
+	if data != nil {
+		// model.completed (and similar turn events) carry the assistant's reply
+		// in assistantTexts / messagesSnapshot rather than a top-level text field.
+		candidates = append(candidates,
+			data["assistantTexts"],
+			data["messagesSnapshot"],
+		)
+	}
+	candidates = append(candidates, data)
+	for _, v := range candidates {
 		if s := sources.TextFromAny(v, 4000); s != "" {
 			return strings.TrimSpace(s)
 		}
 	}
 	return ""
+}
+
+// quietSkipEvent reports whether an event type with no searchable text is a
+// bookkeeping event that should be dropped silently rather than warned about.
+// model.completed turns that carry no assistant text (tool-only or aborted
+// turns) are the common case that otherwise floods the warning stream.
+func quietSkipEvent(eventType string) bool {
+	switch eventType {
+	case "model.completed", "model.started", "model.delta":
+		return true
+	default:
+		return false
+	}
 }
 
 func nonEmpty(parts ...string) []string {
