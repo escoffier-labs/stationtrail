@@ -169,6 +169,50 @@ func TestGenerateMalformedInput(t *testing.T) {
 	}
 }
 
+func TestGenerateModelCompletedExtractsAssistantText(t *testing.T) {
+	// model.completed events carry the assistant's reply in data.assistantTexts
+	// (and data.messagesSnapshot). Previously these were dropped as "no searchable
+	// text", losing the actual model output and spamming a warning per event.
+	line := `{"type":"model.completed","sessionId":"s1","ts":"2026-06-03T16:00:00Z","data":{"turnId":"t1","assistantTexts":["hello from the assistant"]}}` + "\n"
+	path := writeTemp(t, "openclaw.trajectory.jsonl", line)
+	records, result := generate(t, path, sources.Options{})
+	if len(records) != 1 {
+		t.Fatalf("model.completed records = %d, want 1 (warnings=%v)", len(records), result.Warnings)
+	}
+	if !strings.Contains(records[0].Item.Text, "hello from the assistant") {
+		t.Fatalf("model.completed text = %q, want it to contain the assistant reply", records[0].Item.Text)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("unexpected warnings for model.completed with text: %v", result.Warnings)
+	}
+}
+
+func TestGenerateModelCompletedFromMessagesSnapshot(t *testing.T) {
+	line := `{"type":"model.completed","sessionId":"s1","ts":"2026-06-03T16:00:00Z","data":{"turnId":"t1","messagesSnapshot":[{"role":"assistant","content":[{"type":"text","text":"snapshot reply text"}]}]}}` + "\n"
+	path := writeTemp(t, "openclaw.trajectory.jsonl", line)
+	records, result := generate(t, path, sources.Options{})
+	if len(records) != 1 {
+		t.Fatalf("model.completed records = %d, want 1 (warnings=%v)", len(records), result.Warnings)
+	}
+	if !strings.Contains(records[0].Item.Text, "snapshot reply text") {
+		t.Fatalf("model.completed text = %q, want it to contain the snapshot reply", records[0].Item.Text)
+	}
+}
+
+func TestGenerateModelCompletedNoTextIsQuietlySkipped(t *testing.T) {
+	// A model.completed with no assistant text (tool-only or aborted turn) is a
+	// bookkeeping event: skip it without a warning, like session events.
+	line := `{"type":"model.completed","sessionId":"s1","ts":"2026-06-03T16:00:01Z","data":{"turnId":"t2","assistantTexts":[]}}` + "\n"
+	path := writeTemp(t, "openclaw.trajectory.jsonl", line)
+	records, result := generate(t, path, sources.Options{})
+	if len(records) != 0 {
+		t.Fatalf("expected no record for empty model.completed, got %d", len(records))
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected no warning for empty model.completed, got %v", result.Warnings)
+	}
+}
+
 func TestGenerateHugeLine(t *testing.T) {
 	big := strings.Repeat("C", 256*1024)
 	content := `{"type":"message","session_id":"big","role":"human","message":"` + big + `"}` + "\n"
