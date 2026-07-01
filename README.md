@@ -13,11 +13,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/escoffier-labs/stationtrail/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/escoffier-labs/stationtrail/ci.yml?branch=master&style=for-the-badge&label=ci" alt="CI status"></a>
-  <a href="https://github.com/escoffier-labs/stationtrail/releases"><img src="https://img.shields.io/github/v/release/escoffier-labs/stationtrail?style=for-the-badge&label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/go-1.22%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.22+">
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=for-the-badge" alt="Platform: Linux, macOS, Windows">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT license"></a>
+  <a href="https://github.com/escoffier-labs/stationtrail/actions/workflows/ci.yml"><img src="https://shieldcn.dev/github/ci/escoffier-labs/stationtrail.svg?branch=master&workflow=ci.yml" alt="CI status"></a>
+  <a href="https://github.com/escoffier-labs/stationtrail/releases"><img src="https://shieldcn.dev/github/release/escoffier-labs/stationtrail.svg" alt="Latest release"></a>
+  <img src="https://shieldcn.dev/badge/go-1.22%2B-00ADD8.svg?logo=go&logoColor=white" alt="Go 1.22+">
+  <img src="https://shieldcn.dev/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155.svg" alt="Platform: Linux, macOS, Windows">
+  <a href="LICENSE"><img src="https://shieldcn.dev/badge/license-MIT-green.svg" alt="MIT license"></a>
 </p>
 
 StationTrail exports local agent session logs to `miseledger.adapter.v1` JSONL so a separate evidence layer can archive and search them. It exists because each agent harness stores its sessions in its own format and location, and there was no portable, local-only way to normalize all of them into one adapter contract. Unlike a memory layer or an archive, StationTrail is a stateless scanner and exporter: it reads local files, normalizes them, writes JSONL, and stops, while [MiseLedger](https://github.com/escoffier-labs/miseledger) owns storage, indexing, dedupe, search, relations, and evidence bundles.
