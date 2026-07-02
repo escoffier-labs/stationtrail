@@ -1,3 +1,9 @@
+> [!IMPORTANT]
+> **StationTrail has been absorbed into [MiseLedger](https://github.com/escoffier-labs/miseledger)** (v0.3.0+).
+> Session-log export now lives there as native adapters: `miseledger import codex|claude|openclaw|hermes|opencode`
+> and `miseledger crawl sessions`, with the same `--redact` classes. Existing StationTrail JSONL still imports via
+> `miseledger import stationtrail <file>`. This repository is archived and will receive no further changes.
+
 <p align="center">
   <img src="docs/assets/stationtrail-social-preview.jpg" alt="StationTrail banner" width="900">
 </p>
